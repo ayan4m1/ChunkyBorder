@@ -35,18 +35,12 @@ public class BlueMapIntegration extends AbstractMapIntegration {
             this.pendingMarkers.add(() -> this.addShapeMarker(world, shape));
             return;
         }
-        final MarkerSet markerSet = new MarkerSet(MARKER_SET_ID);
-        markerSet.setLabel(this.label);
+        final MarkerSet markerSet = MarkerSet.builder().label(this.label).build();
         final de.bluecolored.bluemap.api.math.Shape blueShape;
         if (shape instanceof final AbstractPolygon polygon) {
-            final List<Vector2> polygonPoints = polygon.points();
-            final int size = polygonPoints.size();
-            final Vector2d[] points = new Vector2d[size];
-            for (int i = 0; i < size; ++i) {
-                final Vector2 p = polygonPoints.get(i);
-                points[i] = Vector2d.from(p.getX(), p.getZ());
-            }
-            blueShape = new de.bluecolored.bluemap.api.math.Shape(points);
+            final de.bluecolored.bluemap.api.math.Shape.Builder shapeBuilder = de.bluecolored.bluemap.api.math.Shape.builder();
+            polygon.points().forEach(p -> shapeBuilder.addPoint(Vector2d.from(p.getX(), p.getZ())));
+            blueShape = shapeBuilder.build();
         } else if (shape instanceof final AbstractEllipse ellipse) {
             final Vector2 center = ellipse.center();
             final Vector2 radii = ellipse.radii();
@@ -55,10 +49,14 @@ public class BlueMapIntegration extends AbstractMapIntegration {
         } else {
             return;
         }
-        final ShapeMarker marker = new ShapeMarker(this.label, blueShape, world.getSeaLevel());
-        marker.setColors(new Color(0xFF000000 | this.color), new Color(0));
-        marker.setLineWidth(this.weight);
-        marker.setDepthTestEnabled(false);
+        final ShapeMarker marker = ShapeMarker.builder()
+                .label(this.label)
+                .shape(blueShape, world.getSeaLevel())
+                .lineColor(new Color(this.color, 1f))
+                .fillColor(new Color(0))
+                .lineWidth(this.weight)
+                .depthTestEnabled(false)
+                .build();
         markerSet.getMarkers().put(MARKER_SET_ID, marker);
         blueMapAPI.getWorld(world.getName())
                 .map(BlueMapWorld::getMaps)
