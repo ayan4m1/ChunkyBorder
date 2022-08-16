@@ -2,6 +2,7 @@ package org.popcraft.chunkyborder;
 
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.AdvancedPie;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfigurationOptions;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -79,7 +80,11 @@ public final class ChunkyBorderBukkit extends JavaPlugin implements Listener {
         getServer().getScheduler().scheduleSyncRepeatingTask(this, new BorderCheckTask(chunkyBorder), checkInterval, checkInterval);
         chunkyBorder.getChunky().getCommands().put("border", new BorderCommand(chunkyBorder));
         getServer().getMessenger().registerOutgoingPluginChannel(this, PLAY_BORDER_PACKET_ID);
-        chunkyBorder.getChunky().getEventBus().subscribe(BorderChangeEvent.class, e -> sendBorderPacket(getServer().getOnlinePlayers(), e.world(), e.shape()));
+        chunkyBorder.getChunky().getEventBus().subscribe(BorderChangeEvent.class, e -> {
+            sendBorderPacket(getServer().getOnlinePlayers(), e.world(), e.shape());
+            updateWorldBorder(e.world());
+        });
+        chunkyBorder.getChunky().getServer().getWorlds().forEach(this::updateWorldBorder);
         startMetrics();
     }
 
@@ -225,5 +230,24 @@ public final class ChunkyBorderBukkit extends JavaPlugin implements Listener {
         for (final org.bukkit.entity.Player player : players) {
             player.sendPluginMessage(this, PLAY_BORDER_PACKET_ID, data);
         }
+    }
+
+    private void updateWorldBorder(final World chunkyWorld) {
+        getLogger().info("Updating vanilla border for world " + chunkyWorld.getName());
+        final var world = Bukkit.getWorld(chunkyWorld.getUUID());
+        if (world == null) {
+            getLogger().severe("Unable to find world!");
+            return;
+        }
+        final var chunkyBorder = chunkyWorld.getWorldBorder();
+        if (chunkyBorder == null) {
+            return;
+        }
+        final var worldBorder = world.getWorldBorder();
+        worldBorder.setCenter(chunkyBorder.getCenter().getX(), chunkyBorder.getCenter().getZ());
+        getLogger().info("Set center of border to " + chunkyBorder.getCenter().getX() + ", " + chunkyBorder.getCenter().getZ());
+        final var blockLimit = chunkyBorder.getRadiusX() * 16;
+        worldBorder.setSize(blockLimit);
+        getLogger().info("Set size of border to " + blockLimit);
     }
 }
