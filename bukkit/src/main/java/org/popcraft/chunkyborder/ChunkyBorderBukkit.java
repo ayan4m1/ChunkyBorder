@@ -3,6 +3,7 @@ package org.popcraft.chunkyborder;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.AdvancedPie;
 import org.bukkit.Bukkit;
+import org.bukkit.WorldBorder;
 import org.bukkit.configuration.file.FileConfigurationOptions;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -18,6 +19,7 @@ import org.popcraft.chunky.platform.BukkitWorld;
 import org.popcraft.chunky.platform.Player;
 import org.popcraft.chunky.platform.World;
 import org.popcraft.chunky.platform.util.Location;
+import org.popcraft.chunky.shape.AbstractEllipse;
 import org.popcraft.chunky.shape.Shape;
 import org.popcraft.chunky.util.TranslationKey;
 import org.popcraft.chunky.util.Translator;
@@ -82,9 +84,9 @@ public final class ChunkyBorderBukkit extends JavaPlugin implements Listener {
         getServer().getMessenger().registerOutgoingPluginChannel(this, PLAY_BORDER_PACKET_ID);
         chunkyBorder.getChunky().getEventBus().subscribe(BorderChangeEvent.class, e -> {
             sendBorderPacket(getServer().getOnlinePlayers(), e.world(), e.shape());
-            updateWorldBorder(e.world());
+//            updateWorldBorder(, e.world());
         });
-        chunkyBorder.getChunky().getServer().getWorlds().forEach(this::updateWorldBorder);
+//        chunkyBorder.getChunky().getServer().getWorlds().forEach(this::updateWorldBorder);
         startMetrics();
     }
 
@@ -217,6 +219,13 @@ public final class ChunkyBorderBukkit extends JavaPlugin implements Listener {
                 }
             }
         }, 20L);
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            final org.bukkit.entity.Player player = getServer().getPlayer(uuid);
+            if (player != null) {
+                chunkyBorder.getChunky().getServer().getWorld(player.getWorld().getName()).ifPresent(world ->
+                    updateWorldBorder(world, player));
+            }
+        }, 200L, 200L);
     }
 
     private void sendBorderPacket(final Collection<? extends org.bukkit.entity.Player> players, final World world, final Shape shape) {
@@ -232,22 +241,41 @@ public final class ChunkyBorderBukkit extends JavaPlugin implements Listener {
         }
     }
 
-    private void updateWorldBorder(final World chunkyWorld) {
-        getLogger().info("Updating vanilla border for world " + chunkyWorld.getName());
-        final var world = Bukkit.getWorld(chunkyWorld.getUUID());
-        if (world == null) {
-            getLogger().severe("Unable to find world!");
-            return;
-        }
+    private void updateWorldBorder(final World chunkyWorld, final org.bukkit.entity.Player player) {
+        getLogger().info("Updating world border for player " + player.getName() + ", world " + chunkyWorld.getName());
+
         final var chunkyBorder = chunkyWorld.getWorldBorder();
         if (chunkyBorder == null) {
             return;
         }
-        final var worldBorder = world.getWorldBorder();
-        worldBorder.setCenter(chunkyBorder.getCenter().getX(), chunkyBorder.getCenter().getZ());
-        getLogger().info("Set center of border to " + chunkyBorder.getCenter().getX() + ", " + chunkyBorder.getCenter().getZ());
-        final var blockLimit = chunkyBorder.getRadiusX() * 16;
-        worldBorder.setSize(blockLimit);
-        getLogger().info("Set size of border to " + blockLimit);
+
+//        final var world = Bukkit.getWorld(chunkyWorld.getUUID());
+//        if (world == null) {
+//            return;
+//        }
+
+        final var worldBorder = Bukkit.getServer().createWorldBorder();
+        final var centerX = chunkyBorder.getCenter().getX();
+        final var centerZ = chunkyBorder.getCenter().getZ();
+        final var radiusX = chunkyBorder.getRadiusX();
+        final var radiusZ = chunkyBorder.getRadiusZ();
+        final var playerX = player.getLocation().getBlockX();
+        final var playerZ = player.getLocation().getBlockZ();
+
+//        final var minX = centerX - radiusX;
+//        final var maxX = centerX + radiusX;
+//        final var minZ = centerZ - radiusZ;
+//        final var maxZ = centerZ + radiusZ;
+
+        final var deltaX = Math.min(playerX - (centerX - radiusX), playerX - (centerX + radiusX));
+        final var deltaZ = Math.min(playerZ - (centerZ - radiusZ), playerZ - (centerZ + radiusZ));
+        final var displayRadius = Math.max(deltaX, deltaZ);
+
+        getLogger().info("Set center to [" + centerX + ", " + centerZ + "]");
+        worldBorder.setCenter(centerX, centerZ);
+        getLogger().info("Set size to " + displayRadius);
+        worldBorder.setSize(displayRadius);
+
+        player.setWorldBorder(worldBorder);
     }
 }
